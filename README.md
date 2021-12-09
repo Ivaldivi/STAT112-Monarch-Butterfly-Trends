@@ -1,5 +1,5 @@
 # STAT112-Monarch-Butterfly-Trends
-Authors: Izzy Valdivia & 
+Authors: Izzy Valdivia & Jessica Ho
 
 This Github repositroy contains the following: 
  - r-markdown file used to perform data wrangling and create data visualizations 

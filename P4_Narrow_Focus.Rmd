@@ -1,0 +1,373 @@
+---
+title: "| Introduction to Data Science    \n| P4: Narrowing Your Project Topic\n"
+author: "Izzy, Jessica & Hanna"
+output:
+  bookdown::html_document2:
+    split_by: none
+    toc: no
+
+---
+
+
+Each group should hand in one html document for the following exercises. Throughout the exercises, keep in mind that your research topics, questions, and data might evolve throughout the course of the project. This checkpoint is simply a first step in narrowing these down.
+
+# Names & Workflow
+
+List all group members. Discuss a plan for completing this assignment. How will you put together your shared Rmd? How will you divide the work? When will you meet to work on the assignment? Write this down in your Rmd.
+
+Izzy Jessica & Hannah
+
+- We'll share our work through google drive! 
+- We will switch off on the coding throughout the project work and get together to discuss more details once we know what work we need to get done
+- Class time, and any other time that we can all meet if we need more time!
+
+# Topic & Research Questions
+
+Following on the conversations you've already had in the preliminary brainstorming exercises, identify a common research topic of interest.
+
+- We'll use inaturalist to gather data
+- We'll look at the migration patterns of a certain type of butterfly (to be determined) Monarch? Painted Ladys?
+- We will start with a large area to look at-- David said the world or maybe all of the US, and then we'll narrow down the area we're looking at if needed.
+
+Specify two to three potential research questions that (1) are related to the topic above; and (2) you can (at least partially) answer using data.
+
+- How does the population distribution of butterflies in the US change over seasons? 
+- How do butterflies migrate across the US through the seasons?
+- How have butterfly sighting numbers changed over the years? Correlation with population?
+
+# Data
+
+Identify the data sets you will use in this assignment to explore the research questions above. These data sets may already be in csv form, you may acquire them (e.g., scraped with rvest, via public API, or from an SQL database), or you may plan on collecting some extra data. For each data set, summarize the following:
+
+- data source-- inaturalist exported data
+- data description - what’s being measured? Butterfly sightings across the world-- Picture, classification, location, date of observation, date that it was added, lat/long, county, country, town, city, etc. 
+- data limitations (eg: are the data recent? do they contain all variables you might want?)
+  This is citizen science, meaning that anyone can add data that will be reviewed by experts. This means that if many people that love documenting butterflies live in one place, that area might have a number of observations that is relatively high even if they have an average number of butterflies in the area. 
+- data dimensions - how much data do you have?
+ ~135,000 observations. A little under
+- how might the data be joined with other data you have?
+- We don't need to join our data :)))))))
+
+# Research Question 1
+
+Restate research question 1. Construct 3-4 relevant visualizations that provide insight on / help answer this question and piece these together to tell a short story. For each visualization, 1-2 sentences will suffice.
+
+- How does the population distribution of Monarch butterflies in the World change over seasons? 
+
+```{r, message=FALSE}
+#Data cleaning
+
+library(readr)
+library(lubridate)
+library(tidyverse)
+library(lubridate)
+library(urltools)
+library(jsonlite)
+library(maps)
+library(ggmap)
+library(usmap)
+library(ggthemes)
+library(purrr)
+library(base)
+library(sf)
+```
+
+```{r, cache=TRUE}
+butterflies <- read_csv("observations-200742.csv")
+head(butterflies)
+
+butterflies <- butterflies %>% 
+    mutate(year = year(observed_on), monthNum = month(observed_on), 
+           monthName = month(observed_on, label=TRUE),
+           dayMonth= mday(observed_on), weekday = wday(observed_on, label=TRUE))
+
+library(zoo)
+yq <- as.yearqtr(as.yearmon(butterflies$observed_on, "%Y-%m-%d") + 1/12)
+butterflies$season <- factor(format(yq, "%q"), levels = 1:4, 
+                labels = c("winter", "spring", "summer", "fall"))
+
+head(butterflies)
+
+butterfliesGroupedBySeason <- butterflies %>%
+  group_by(season) %>%
+  summarise(numPerSeason = n())
+
+butterfliesGroupedBySeason
+
+butterfliesMonth <- butterflies %>%
+  group_by(monthName, season) %>%
+  summarise(numPerMonth = n())
+butterfliesMonth
+
+butterfliesM <- butterfliesMonth %>%
+  mutate(monthName = fct_relevel(monthName, "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov")) %>%
+  arrange(season)
+
+butterfliesM
+
+```
+
+```{r, message=FALSE}
+# observations per season
+plot1 <-ggplot(butterfliesGroupedBySeason, aes(x = season, y=numPerSeason, fill=season)) + 
+  geom_col() +
+  theme_classic() + 
+  labs(title = "Global Population of Monarch Butterflies by Season")
+
+# map per season and month
+plot2 <- ggplot(butterfliesM, aes(x = monthName, y=numPerMonth, fill=season)) + 
+  geom_col()+
+  theme_classic() + 
+  labs(title = "Global Population of Monarch Butterflies by Month")
+
+
+# Get the map information
+US <- get_stamenmap(
+    bbox = c(left = -132, bottom = 20, right = -65, top = 55), 
+    maptype = "terrain",
+    zoom = 4)
+
+US2 <- get_stamenmap(
+    bbox = c(left = -132, bottom = 20, right = -65, top = 55), 
+    maptype = "terrain-labels",
+    zoom = 4)
+
+# Get the map information
+world <- get_stamenmap(
+   bbox = c(left = -180, bottom = -57, right = 179, top = 82.1), 
+    maptype = "terrain",
+    zoom = 2)
+world2 <- get_stamenmap(
+    bbox = c(left = -180, bottom = -57, right = 179, top = 82.1), 
+    maptype = "terrain-labels",
+    zoom = 2)
+
+# Plot the points on the map
+ggmap(world) + # creates the map "background"
+  geom_point(data = butterflies, 
+             aes(x = longitude, y = latitude, color=season), 
+             alpha = .3, 
+             size = .2) +
+  theme_map()
+
+ggmap(world2) + # creates the map "background"
+  geom_point(data = butterflies, 
+             aes(x = longitude, y = latitude, color=season), 
+             alpha = .3, 
+             size = .2) +
+  theme_map()
+# states_map <- map_data("state")
+# 
+# states_map
+# state_butterflies <- butterflies %>%
+#   group_by(place_state_name)%>%
+#   summarise(n=n())
+# state_butterflies %>% 
+#   ggplot() +
+#   geom_map(map = states_map,
+#            aes(map_id = place_state_name,
+#                fill = n)) +
+#   #This assures the map looks decently nice:
+#   expand_limits(x = states_map$long, y = states_map$lat) + 
+#   theme_map()
+
+
+```
+
+
+# Research Question 2 (and possibly 3)
+
+- How do butterflies migrate across the US through the seasons?
+
+```{r, message=FALSE}
+# WINTER
+butterfliesWinter <- butterflies %>%
+  filter(season=="winter")
+
+wnter <-ggmap(world) + # creates the map "background"
+  geom_point(data = butterfliesWinter, 
+             aes(x = longitude, y = latitude, color=season), 
+             alpha = .3, 
+             size = .2) +
+  theme_map() + 
+  labs(title="Butterfly Observations in Months Jan, Feb & Dec")
+
+#SPRING
+butterfliesSpring <- butterflies %>%
+  filter(season=="spring")
+
+spring <- ggmap(world) + # creates the map "background"
+  geom_point(data = butterfliesSpring, 
+             aes(x = longitude, y = latitude, color=season), 
+             alpha = .2, 
+             size = .2) +
+  theme_map() + 
+    labs(title="Butterfly Observations in Months Mar, Apr & May")
+
+
+# SUMMER
+butterfliesSummer <- butterflies %>%
+  filter(season=="summer")
+
+smmer <- ggmap(world) + # creates the map "background"
+  geom_point(data = butterfliesSummer, 
+             aes(x = longitude, y = latitude, color=season, ), 
+             alpha = .2, 
+             size = .2) +
+  theme_map()+ 
+    labs(title="Butterfly Observations in Months Jun, Jul & Aug")
+
+#FALL
+butterfliesFall <- butterflies %>%
+  filter(season=="fall")
+
+fll <- ggmap(world) + # creates the map "background"
+  geom_point(data = butterfliesFall, 
+             aes(x = longitude, y = latitude, color=season), 
+             alpha = .2, 
+             size = .2) +
+  theme_map()+ 
+    labs(title="Butterfly Observations in Months Sept, Oct & Nov")
+
+```
+
+```{r, message=FALSE}
+# WINTER
+butterfliesWinter <- butterflies %>%
+  filter(season=="winter")
+
+ggmap(world) + # creates the map "background"
+  geom_point(data = butterfliesWinter, 
+             aes(x = longitude, y = latitude, color=season), 
+             alpha = .3, 
+             size = .2) +
+  theme_map() + 
+  labs(title="Butterfly Observations in Months Jan, Feb & Dec")
+
+#SPRING
+butterfliesSpring <- butterflies %>%
+  filter(season=="spring")
+
+ggmap(world) + # creates the map "background"
+  geom_point(data = butterfliesSpring, 
+             aes(x = longitude, y = latitude, color=season), 
+             alpha = .2, 
+             size = .2) +
+  theme_map() + 
+    labs(title="Butterfly Observations in Months Mar, Apr & May")
+
+
+# SUMMER
+butterfliesSummer <- butterflies %>%
+  filter(season=="summer")
+
+ggmap(world) + # creates the map "background"
+  geom_point(data = butterfliesSummer, 
+             aes(x = longitude, y = latitude, color=season, ), 
+             alpha = .2, 
+             size = .2) +
+  theme_map()+ 
+    labs(title="Butterfly Observations in Months Jun, Jul & Aug")
+
+#FALL
+butterfliesFall <- butterflies %>%
+  filter(season=="fall")
+
+ggmap(world) + # creates the map "background"
+  geom_point(data = butterfliesFall, 
+             aes(x = longitude, y = latitude, color=season), 
+             alpha = .2, 
+             size = .2) +
+  theme_map()+ 
+    labs(title="Butterfly Observations in Months Sept, Oct & Nov")
+
+
+```
+
+```{r, fig.width=9}
+butterfliesyint <- butterflies %>%
+  filter(year >= 1993)
+
+butterfliesyint
+
+ggmap(world2) + # creates the map "background"
+  geom_point(data = butterfliesyint, 
+             aes(x = longitude, y = latitude, color=season), 
+             alpha = .3, 
+             size = .2) +
+  theme_map()+ 
+  theme(legend.position = "right")+
+  facet_wrap(~year)
+
+```
+
+
+
+# Next Steps
+
+Identify next steps in your analysis. Do you need additional data? Do you need to do more cleaning or wrangling? How might you narrow your research questions/hypotheses? What additional visualizations would be helpful?
+
+
+- Make an animated map that shows Monarch butterfly population changes over year
+- Get Global data-- We were having trouble with exporting this data because it takes ~6 hours for this data to process and Izzy's browser deleted previous queries :( :O
+- Probably don't need to do much more data wrangling. We have added year, month, date, weekday, and season to our dataset which seems to be all that we'll need
+
+# Contributions
+```{r}
+
+## US BY WEEK 
+library(gganimate)
+library(av)
+
+butterflies <- butterflies %>%
+  mutate(weekOfYear = week(ymd(observed_on)))
+
+
+butterflies <- butterflies %>%
+  mutate(wy = year + weekOfYear/53)%>%
+  mutate(dayOfYear = yday(observed_on)) %>%
+  filter(year > 1999 )
+
+head(butterflies)
+
+animate <- ggmap(US)+
+  geom_point(data=butterflies,aes(x=longitude,y=latitude,color=weekOfYear),size=1.3)+
+  scale_color_distiller(palette="YlOrRd")+
+  transition_time(dayOfYear)+
+  labs(color="Day of the year")
+
+animateterrain <- ggmap(US2)+
+  geom_point(data=butterflies,aes(x=longitude,y=latitude,color=wy),size=1.3)+
+  scale_color_distiller(palette="YlOrRd")+
+  transition_time(wy)+
+  labs(color="Week of the year from 1993 to 2020")
+
+animate(animate,fps=9,start_pause=2,end_pause=15,renderer=av_renderer())
+animate(animateterrain,fps=5,start_pause=2,end_pause=15,renderer=av_renderer())
+
+```
+
+
+```{r}
+
+## WORLD 
+head(butterflies)
+
+animateWorld <- ggmap(world)+
+  geom_point(data=butterflies,aes(x=longitude,y=latitude,color=wy),size=0.3)+
+  scale_color_distiller(palette="Oranges")+
+  transition_time(wy)+
+  labs(color="Week of the year") + 
+  theme_classic()
+
+animateWorldTerrain <- ggmap(world2)+
+  geom_point(data=butterflies,aes(x=longitude,y=latitude,color=weekOfYear),size=.3)+
+  scale_color_distiller(palette="Oranges")+
+  transition_time(dayOfYear)+
+  labs(color="day of the year") + 
+  theme_classic()
+
+WORLD1 <- animate(animateWorld,fps=5,start_pause=2,end_pause=15,renderer=av_renderer())
+WORLD2 <- animate(animateWorldTerrain,fps=5,start_pause=2,end_pause=15,renderer=av_renderer())
+
+```
